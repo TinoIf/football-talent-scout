@@ -63,7 +63,7 @@ pip install -r requirements.txt
 ### 4️⃣ Setup the Data
 Important: Dataset tidak disertakan dalam repository.
 
-- Download EA Sports FC 24 Complete Player Database dari Kaggle [Kaggle_Dataset](https://www.kaggle.com/datasets/rehandl23/fifa-24-player-stats-dataset)
+- Download Male_Players Dataset dari Kaggle [Kaggle_Dataset](https://www.kaggle.com/datasets/stefanoleone992/ea-sports-fc-24-complete-player-dataset?select=male_players.csv)
 - Extract file ZIP
 - Rename file utama menjadi male_players.csv
 - Pindahkan ke folder: ```bash data/raw/male_players.csv ```
