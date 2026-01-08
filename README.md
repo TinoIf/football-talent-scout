@@ -1,36 +1,57 @@
 # ⚽ The Next Superstar Football Finder
 
-![Python](https://img.shields.io/badge/Python-3.9%2B-blue)
+![Python](https://img.shields.io/badge/Python-3.10%2B-blue)
 ![Streamlit](https://img.shields.io/badge/Streamlit-1.28%2B-red)
-![Scikit-Learn](https://img.shields.io/badge/ML-Scikit--Learn-orange)
+![Scikit-Learn](https://img.shields.io/badge/ML-Hybrid%20AI-orange)
+![License](https://img.shields.io/badge/License-MIT-green)
 
-**The Next Superstar Finder** is a Machine Learning-based recommendation system designed to help football scouts and managers identify potential talents by finding players with similar statistical profiles to established stars.
+**The Next Superstar Finder** is a sophisticated Machine Learning-based scouting tool designed to identify football talents. Unlike traditional recommendation systems, this project utilizes a **Hybrid AI Approach** combining Classification and Clustering to provide highly accurate "Moneyball-style" scouting.
 
-Using **Unsupervised Learning (K-Nearest Neighbors)** and data from FC 24, this tool enables "Moneyball-style" scouting to find undervalued players with world-class attributes.
+It serves two main purposes: looking for replacements for established stars, and matching a user's own statistics to professional players.
 
-## 🚀 Features
+## 🚀 Key Features
 
-- **Player Similarity Search:** Find top 5 players statistically similar to any target player.
-- **Interactive Radar Charts:** Visual comparison of player attributes (Pace, Shooting, Passing, etc.).
-- **Smart Filtering:** Filter recommendations by Age, Market Value, and Position.
-- **Comprehensive Database:** Based on 18,000+ players from major leagues.
+### 1. 🕵️ Player Similarity Search (Scouting Mode)
+- **Data-Driven Scouting:** Find the top 5 players statistically identical to any target player (e.g., "Find me the next Erling Haaland").
+- **Smart Filtering:** Narrow down results by **Age**, **Market Value**, and specific attributes.
+- **Visual Comparison:** Interactive Radar Charts to compare the target vs. recommendations side-by-side.
 
-## 🛠️ Tech Stack
+### 2. ⭐ Pro Player Matcher (Input Your Stats)
+- **"Which Star Are You?":** Input your own physical (Height, Weight) and technical stats.
+- **AI Position Prediction:** The system uses a **Random Forest Classifier** to analyze your stats and predict your ideal position on the field.
+- **Physical Profiling:** Takes **Height** and **Weight** into account—ensuring a 170cm winger isn't compared to a 195cm center-back.
+- **Dominant Foot Filter:** Specifically search for Left-footed or Right-footed players.
 
-- **Core:** Python
-- **Data Processing:** Pandas, NumPy
-- **Machine Learning:** Scikit-Learn (Nearest Neighbors, StandardScaler)
-- **Visualization:** Matplotlib / Plotly
-- **Web Framework:** Streamlit
+## 🛠️ Tech Stack & Methodology
+
+The core intelligence of this application relies on a **Hybrid Machine Learning Pipeline**:
+
+### 1.  **Feature Engineering:**
+    * Processes **37 Attributes** including technical skills (Finishing, Tackle), physical traits (Height, Weight), and mental stats.
+    * Data Normalization using `StandardScaler`.
+
+### 2.  **Stage 1: Position Classification (Random Forest):**
+    * A supervised model predicts the broad position (Attacker, Midfielder, Defender) based on input statistics.
+    * *Accuracy:* ~88% on test data.
+
+### 3.  **Stage 2: Similarity Search (K-Nearest Neighbors):**
+    * Unsupervised learning calculates the Euclidean distance between players within the predicted position "cluster".
+    * Ensures recommendations are positionally and physically relevant.
 
 ## 📂 Project Structure
 
 ```bash
-├── data/          # Raw and processed datasets
-├── models/        # Trained .pkl models
-├── notebooks/     # Jupyter notebooks for EDA and prototyping
-├── src/           # Source code for the Streamlit application
-└── requirements.txt
+football-talent-scout/
+├── data/
+│   ├── raw/             # Place your 'players_24_complete.csv' here
+│   └── processed/       # Generated files (players_clean.csv, players_labeled.csv)
+├── models/              # Saved AI models (.pkl files)
+├── notebooks/           # Jupyter notebooks for training
+│   ├── 01_model_building.ipynb    # Cleaning & KNN Training
+│   └── 02_build_classifier.ipynb  # Random Forest Training
+├── src/
+│   └── app.py           # Main Streamlit Application
+└── requirements.txt     # Python dependencies
 ```
 
 ## Installation & Setup
@@ -63,52 +84,31 @@ pip install -r requirements.txt
 ### 4️⃣ Setup the Data
 Important: Dataset tidak disertakan dalam repository.
 
-- Download Male_Players Dataset dari Kaggle [Kaggle_Dataset](https://www.kaggle.com/datasets/stefanoleone992/ea-sports-fc-24-complete-player-dataset?select=male_players.csv)
+- Download EA Sports FC 24 Complete Player Database dari Kaggle [Kaggle_Dataset](https://www.kaggle.com/datasets/stefanoleone992/ea-sports-fc-24-complete-player-dataset?select=male_players.csv)
 - Extract file ZIP
 - Rename file utama menjadi male_players.csv
 - Pindahkan ke folder: ```bash data/raw/male_players.csv ```
 
-### 5️⃣ Run the Application
+### 5️⃣ Train the Models
+
+Sebelum menjalankan aplikasi, Anda perlu melatih model agar file .pkl terbentuk. Jalankan notebook di folder notebooks/ secara berurutan:
+
+    Run bash 01_model_building.ipynb
+
+    Run 02_build_classifier.ipynb
+
+### 6️⃣ Run the Application
 ```bash
 streamlit run src/app.py
 ```
 
-## 🧠 How It Works (Methodology)
-
-Sistem rekomendasi menggunakan pipeline Unsupervised Learning:
-
-🔹 1. Data Preprocessing
-
-Remove Goalkeepers
-
-Handle missing values
-
-Hapus metadata tidak relevan
-
-🔹 2. Feature Engineering
-
-Memilih 30+ atribut teknis (Finishing, Crossing, Ball Control, dll)
-
-Normalisasi menggunakan StandardScaler
-
-🔹 3. Modeling
-
-Algoritma: K-Nearest Neighbors (KNN)
-
-Menggunakan Euclidean Distance untuk menghitung kemiripan antar pemain
-
-🔹 4. Inference
-
-Sistem mengembalikan k pemain terdekat berdasarkan jarak vektor statistik
-
-
 ## 🔮 Future Improvements
 
-Tambahkan filter berdasarkan liga
+    [ ] League Filtering: Filter recommendations based on specific leagues (Premier League, La Liga, etc.).
 
-Fitur "Squad Builder" berdasarkan budget
+    [ ] Squad Builder: AI-driven team creation within a budget cap.
 
-Deployment ke Streamlit Cloud
+    [ ] Historical Data: Comparing players across different seasons.
 
 ## 🤝 Contributing
 
