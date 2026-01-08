@@ -5,44 +5,50 @@ import numpy as np
 import plotly.graph_objects as go
 
 # ==========================================
-# 1. KONFIGURASI HALAMAN WEB
+# 1. SETUP & KONFIGURASI HALAMAN
 # ==========================================
 st.set_page_config(
-    page_title="Football Talent Scout",
+    page_title="Football Talent Scout AI",
     page_icon="⚽",
-    layout="wide"
+    layout="wide",
+    initial_sidebar_state="expanded"
 )
 
-# Judul Utama
-st.title("⚽ Football Talent Scout: The Next Superstar Finder")
+st.markdown("""
+<style>
+    .metric-card {background-color: #f0f2f6; border-radius: 10px; padding: 15px; text-align: center;}
+    h1 {color: #1f77b4;}
+</style>
+""", unsafe_allow_html=True)
+
+st.markdown("<h1 style='text-align: center;'>⚽ The Next Superstar Finder</h1>", unsafe_allow_html=True)
+st.markdown("<p style='text-align: center;'>Powered by Hybrid AI (Random Forest Classifier + KNN Euclidean)</p>", unsafe_allow_html=True)
 st.markdown("---")
 
 # ==========================================
-# 2. FUNGSI LOAD DATA & MODEL (Supaya Cepat)
+# 2. LOAD DATA & MODEL
 # ==========================================
 @st.cache_data
 def load_data():
-    # Load dataset yang sudah bersih
-    # Path '..' berarti mundur satu folder dari 'src' ke folder utama
-    df = pd.read_csv('data/processed/players_clean.csv')
+    df = pd.read_csv('data/processed/players_labeled.csv') 
     return df
 
 @st.cache_resource
 def load_models():
-    # Load model KNN dan Scaler
     knn = joblib.load('models/knn_model.pkl')
     scaler = joblib.load('models/scaler.pkl')
-    return knn, scaler
+    rf_classifier = joblib.load('models/rf_classifier.pkl')
+    return knn, scaler, rf_classifier
 
 try:
     df = load_data()
-    knn_model, scaler = load_models()
+    knn_model, scaler, rf_model = load_models()
 except FileNotFoundError:
-    st.error("❌ File tidak ditemukan! Pastikan kamu sudah menjalankan notebook dan path-nya benar.")
+    st.error("❌ File Data/Model tidak ditemukan! Pastikan kamu sudah menjalankan Notebook training.")
     st.stop()
 
-# Daftar Fitur Skill yang dipakai AI (Harus sama persis dengan urutan di Notebook)
 feature_cols = [
+    'height_cm', 'weight_kg',
     'pace', 'shooting', 'passing', 'dribbling', 'defending', 'physic',
     'attacking_crossing', 'attacking_finishing', 'attacking_heading_accuracy',
     'attacking_short_passing', 'attacking_volleys',
@@ -58,141 +64,239 @@ feature_cols = [
 ]
 
 # ==========================================
-# 3. FITUR VISUALISASI (RADAR CHART)
+# 3. FUNGSI VISUALISASI
 # ==========================================
-def plot_radar_chart(player1, player2):
-    # Kita bandingkan 6 Atribut Utama saja biar grafik enak dilihat
-    categories = ['pace', 'shooting', 'passing', 'dribbling', 'defending', 'physic']
+def plot_radar_chart(player_name, player_stats, comparison_name, comparison_stats):
+    categories = ['Pace', 'Shooting', 'Passing', 'Dribbling', 'Defending', 'Physic']
     
-    # Ambil data player 1 dan 2
-    val1 = player1[categories].values.flatten().tolist()
-    val2 = player2[categories].values.flatten().tolist()
-    
-    # Supaya grafiknya nyambung, ulangi titik pertama di akhir
+    def get_val(stats, col):
+        if isinstance(stats, dict): return stats.get(col, 0)
+        try:
+            return stats[col].values[0]
+        except:
+            return 0
+
+    val1 = [get_val(player_stats, c.lower()) for c in categories]
+    val2 = [get_val(comparison_stats, c.lower()) for c in categories]
+
     val1 += val1[:1]
     val2 += val2[:1]
-    categories += categories[:1]
+    plot_cat = categories + categories[:1]
 
     fig = go.Figure()
-
-    # Grafik Player Target (Merah)
-    fig.add_trace(go.Scatterpolar(
-        r=val1, theta=categories, fill='toself', name=player1['short_name'].values[0],
-        line_color='red'
-    ))
-
-    # Grafik Player Rekomendasi (Biru)
-    fig.add_trace(go.Scatterpolar(
-        r=val2, theta=categories, fill='toself', name=player2['short_name'].values[0],
-        line_color='blue'
-    ))
+    fig.add_trace(go.Scatterpolar(r=val1, theta=plot_cat, fill='toself', name=player_name, line_color='red'))
+    fig.add_trace(go.Scatterpolar(r=val2, theta=plot_cat, fill='toself', name=comparison_name, line_color='blue'))
 
     fig.update_layout(
-        polar=dict(radialaxis=dict(visible=True, range=[0, 100])),
-        showlegend=True,
-        height=400
+        polar=dict(radialaxis=dict(visible=True, range=[0, 100])), 
+        height=300, 
+        margin=dict(t=30, b=30),
+        legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1)
     )
-    
     return fig
 
-# ==========================================
-# 4. SIDEBAR (PANEL KIRI)
-# ==========================================
-st.sidebar.header("🔍 Cari Pemain")
-
-# Dropdown Pilih Pemain
-# Kita urutkan nama pemain biar gampang dicari
-player_list = df['short_name'].sort_values().unique()
-selected_player_name = st.sidebar.selectbox("Pilih Pemain Target:", player_list)
-
-# Filter Tambahan (Opsional)
-st.sidebar.markdown("---")
-st.sidebar.subheader("⚙️ Filter Rekomendasi")
-max_age = st.sidebar.slider("Maksimal Umur (Rekomendasi)", 15, 40, 25)
-max_price = st.sidebar.number_input("Maksimal Harga (€)", value=100000000, step=1000000)
-
-# Tombol Eksekusi
-btn_search = st.sidebar.button("🚀 Cari 'The Next' Superstar")
-
-# ==========================================
-# 5. LOGIKA UTAMA (MAIN APP)
-# ==========================================
-if btn_search:
-    # 1. Ambil Data Pemain Target
-    target_player = df[df['short_name'] == selected_player_name]
-    
-    if len(target_player) == 0:
-        st.error("Pemain tidak ditemukan!")
+def show_player_image(row):
+    img_url = None
+    if 'player_face_url' in row and pd.notna(row['player_face_url']):
+        img_url = row['player_face_url']
+    elif 'player_url' in row and pd.notna(row['player_url']):
+        val_url = str(row['player_url'])
+        if val_url.startswith('http'):
+            img_url = val_url
+            
+    if img_url:
+        try:
+            st.image(img_url, width=100)
+        except:
+            st.write("👤")
     else:
-        # Tampilkan Info Pemain Target
-        c1, c2, c3 = st.columns([1, 2, 2])
+        st.write("👤")
+
+# ==========================================
+# 4. TAB NAVIGASI UTAMA
+# ==========================================
+tab1, tab2 = st.tabs(["🕵️ Cari Pemain Serupa (Scouting)", "⭐ Pro Player Matcher (Input Sendiri)"])
+
+# ==========================================
+# TAB 1: SCOUTING MODE
+# ==========================================
+with tab1:
+    st.header("🔍 Player Similarity Search")
+    st.caption("Cari alternatif pemain transfer berdasarkan kemiripan statistik.")
+    
+    col_search, col_filter = st.columns([1, 2])
+    
+    with col_search:
+        player_list = df['short_name'].sort_values().unique()
+        selected_player = st.selectbox("Pilih Pemain Target:", player_list, index=0)
+        btn_scout = st.button("🚀 Cari Rekomendasi", type="primary")
+        
+    with col_filter:
+        c1, c2 = st.columns(2)
         with c1:
-            # Tampilkan Foto (Jika kolom URL ada)
-            if 'player_face_url' in target_player.columns:
-                st.image(target_player['player_face_url'].values[0], width=100)
-            else:
-                st.write("📷 No Image")
+            max_age = st.slider("Maksimal Umur", 16, 40, 28)
         with c2:
-            st.subheader(target_player['short_name'].values[0])
-            st.write(f"**Club:** {target_player['club_name'].values[0]}")
-            st.write(f"**Age:** {target_player['age'].values[0]}")
-            st.write(f"**Market Value:** €{target_player['value_eur'].values[0]:,.0f}")
-        with c3:
-            st.metric("Overall Rating", target_player['overall'].values[0])
+            max_price = st.number_input("Maksimal Budget (€)", value=100_000_000, step=1_000_000)
 
-        st.markdown("### 🔥 Top 5 Rekomendasi Pemain Mirip")
+    if btn_scout:
+        target_row = df[df['short_name'] == selected_player]
         
-        # 2. PROSES MACHINE LEARNING
-        # Ambil fitur skill dari target player
-        target_features = target_player[feature_cols].values
+        raw_stats = target_row[feature_cols].values
+        scaled_stats = scaler.transform(raw_stats)
+        distances, indices = knn_model.kneighbors(scaled_stats, n_neighbors=50)
         
-        # Normalisasi data (PENTING: Pakai scaler yang sama dengan saat training)
-        target_features_scaled = scaler.transform(target_features)
+        st.markdown("#### 🎯 Target Profile")
+        col_t1, col_t2, col_t3, col_t4 = st.columns(4)
+        col_t1.metric("Position", target_row['simple_position'].values[0])
+        col_t2.metric("Age", f"{target_row['age'].values[0]} th")
+        col_t3.metric("Height", f"{target_row['height_cm'].values[0]} cm")
+        col_t4.metric("Value", f"€{target_row['value_eur'].values[0]:,.0f}")
         
-        # Cari tetangga terdekat (KNN)
-        # n_neighbors=20 (ambil agak banyak dulu, nanti difilter umur/harga)
-        distances, indices = knn_model.kneighbors(target_features_scaled, n_neighbors=20)
-        
-        # 3. TAMPILKAN HASIL
-        recommendations = df.iloc[indices[0]] # Ambil data pemain berdasarkan index
-        
-        # Filter: Buang pemain itu sendiri (Diri sendiri pasti paling mirip)
-        recommendations = recommendations[recommendations['short_name'] != selected_player_name]
-        
-        # Filter: Sesuai Slider (Umur & Harga)
-        filtered_recs = recommendations[
-            (recommendations['age'] <= max_age) & 
-            (recommendations['value_eur'] <= max_price)
-        ].head(5) # Ambil 5 teratas setelah filter
+        st.markdown("---")
+        st.markdown("#### ✅ Top Recommendations")
 
-        if len(filtered_recs) == 0:
-            st.warning("⚠️ Tidak ada pemain yang cocok dengan filter umur/harga kamu. Coba longgarkan filter.")
+        candidates = df.iloc[indices[0]]
+        filtered = candidates[
+            (candidates['short_name'] != selected_player) & 
+            (candidates['age'] <= max_age) & 
+            (candidates['value_eur'] <= max_price)
+        ].head(5)
+        
+        if len(filtered) == 0:
+            st.warning("⚠️ Tidak ditemukan pemain yang cocok dengan filter umur/budget ini.")
         else:
-            # Loop untuk menampilkan kartu pemain
-            for idx, row in filtered_recs.iterrows():
-                with st.container():
-                    st.markdown("---")
-                    col_img, col_info, col_chart = st.columns([1, 2, 3])
+            for idx, row in filtered.iterrows():
+                with st.expander(f"#{idx+1} {row['short_name']} ({row['club_name']})", expanded=True):
+                    c_img, c_info, c_radar = st.columns([1, 2, 2])
                     
-                    with col_img:
-                        if 'player_face_url' in row:
-                            st.image(row['player_face_url'], width=80)
-                        st.caption(f"Rank #{idx}") # Ini bug kecil indexnya ngaco gpp
-                    
-                    with col_info:
+                    with c_img:
+                        show_player_image(row)
+                    with c_info:
                         st.subheader(row['short_name'])
-                        st.write(f"🌍 {row['nationality_name']} | 👕 {row['club_name']}")
-                        st.write(f"🎂 {row['age']} Tahun")
-                        st.success(f"💰 €{row['value_eur']:,.0f}")
-                    
-                    with col_chart:
-                        # Tampilkan Radar Chart perbandingan
-                        # Mengubah row (Series) menjadi DataFrame 1 baris agar fungsi plot bisa baca
-                        row_df = pd.DataFrame([row]) 
-                        chart = plot_radar_chart(target_player, row_df)
+                        st.caption(f"{row['nationality_name']} | {row['player_positions']}")
+                        st.write(f"**Umur:** {row['age']} | **Tinggi:** {row['height_cm']} cm")
+                        st.write(f"**Kaki:** {row['preferred_foot']}")
+                        st.success(f"💰 Market Value: €{row['value_eur']:,.0f}")
+                    with c_radar:
+                        chart = plot_radar_chart(selected_player, target_row, row['short_name'], pd.DataFrame([row]))
                         st.plotly_chart(chart, use_container_width=True)
 
-else:
-    # Tampilan Awal sebelum search
-    st.info("👈 Silakan pilih pemain di menu sebelah kiri untuk memulai pencarian.")
-    st.image("https://upload.wikimedia.org/wikipedia/commons/thumb/d/d3/Soccerball.svg/1200px-Soccerball.svg.png", width=200)
+
+# ==========================================
+# TAB 2: MATCHER MODE
+# ==========================================
+with tab2:
+    st.header("⭐ Pro Player Matcher")
+    st.caption("Masukkan data fisik & statistikmu, AI akan menebak posisimu dan mencarikan 'kembaran' pro-mu.")
+
+    with st.form("input_form"):
+        col_phys, col_def, col_att = st.columns(3)
+        
+        with col_phys:
+            st.markdown("### 🧬 Physical")
+            ui_height = st.slider("Tinggi Badan (cm)", 150, 210, 175)
+            ui_weight = st.slider("Berat Badan (kg)", 50, 100, 70)
+            ui_foot = st.radio("Kaki Dominan", ["Right", "Left", "Both"], horizontal=True)
+            st.markdown("---")
+            st.markdown("### ⚡ Movement")
+            ui_pace = st.slider("Pace / Speed", 0, 99, 70)
+            ui_accel = st.slider("Acceleration", 0, 99, 70)
+            ui_stamina = st.slider("Stamina", 0, 99, 65)
+            ui_strength = st.slider("Strength", 0, 99, 65)
+
+        with col_def:
+            st.markdown("### 🛡️ Defending")
+            ui_defending = st.slider("Defending Overall", 0, 99, 50)
+            ui_stand_tackle = st.slider("Stand Tackle", 0, 99, 50)
+            ui_slide_tackle = st.slider("Slide Tackle", 0, 99, 50)
+            ui_interception = st.slider("Interceptions", 0, 99, 50)
+            ui_aggression = st.slider("Aggression", 0, 99, 60)
+            ui_composure = st.slider("Composure", 0, 99, 60)
+            ui_vision = st.slider("Vision", 0, 99, 60)
+
+        with col_att:
+            st.markdown("### ⚽ Attacking")
+            ui_shooting = st.slider("Shooting Overall", 0, 99, 55)
+            ui_finishing = st.slider("Finishing", 0, 99, 55)
+            ui_passing = st.slider("Passing Overall", 0, 99, 65)
+            ui_short_pass = st.slider("Short Pass", 0, 99, 65)
+            ui_dribbling = st.slider("Dribbling Overall", 0, 99, 65)
+            ui_ball_control = st.slider("Ball Control", 0, 99, 65)
+            ui_crossing = st.slider("Crossing", 0, 99, 60)
+
+        submitted = st.form_submit_button("🔍 Analisis & Cari Kembaran")
+
+    if submitted:
+        # Mapping input ke dictionary
+        input_data = {
+            'height_cm': ui_height, 'weight_kg': ui_weight, 'pace': ui_pace,
+            'shooting': ui_shooting, 'passing': ui_passing, 'dribbling': ui_dribbling,
+            'defending': ui_defending, 'physic': (ui_strength + ui_stamina)/2, 
+            'attacking_crossing': ui_crossing, 'attacking_finishing': ui_finishing,
+            'attacking_heading_accuracy': ui_height/2.5, 'attacking_short_passing': ui_short_pass,
+            'attacking_volleys': ui_shooting - 10, 'skill_dribbling': ui_dribbling,
+            'skill_curve': ui_passing - 5, 'skill_fk_accuracy': ui_shooting - 15,
+            'skill_long_passing': ui_passing - 5, 'skill_ball_control': ui_ball_control,
+            'movement_acceleration': ui_accel, 'movement_sprint_speed': ui_pace,
+            'movement_agility': (110 - ui_weight), 'movement_reactions': ui_composure,
+            'movement_balance': (110 - ui_height/2.2), 'power_shot_power': ui_shooting + 5,
+            'power_jumping': ui_stamina, 'power_stamina': ui_stamina, 'power_strength': ui_strength,
+            'power_long_shots': ui_shooting, 'mentality_aggression': ui_aggression,
+            'mentality_interceptions': ui_interception, 'mentality_positioning': ui_dribbling - 5,
+            'mentality_vision': ui_vision, 'mentality_penalties': ui_shooting,
+            'mentality_composure': ui_composure, 'defending_marking_awareness': ui_defending,
+            'defending_standing_tackle': ui_stand_tackle, 'defending_sliding_tackle': ui_slide_tackle
+        }
+
+        try:
+            input_vector = np.array([input_data[col] for col in feature_cols]).reshape(1, -1)
+            pred_position = rf_model.predict(input_vector)[0]
+            
+            st.markdown("---")
+            st.info(f"🤖 **AI Analysis:** Posisi idealmu adalah **{pred_position.upper()}**")
+
+            input_scaled = scaler.transform(input_vector)
+            distances, indices = knn_model.kneighbors(input_scaled, n_neighbors=500)
+            
+            candidates = df.iloc[indices[0]].copy()
+            candidates = candidates[candidates['simple_position'] == pred_position]
+            
+            if ui_foot != "Both":
+                candidates = candidates[candidates['preferred_foot'] == ui_foot]
+                st.caption(f"🎯 Filter: Pemain kaki **{ui_foot}**")
+            
+            final_results = candidates.head(5)
+
+            if len(final_results) == 0:
+                st.warning(f"Tidak ada pemain {pred_position} kaki {ui_foot} yang mirip.")
+            else:
+                st.markdown(f"### 🔥 Top 5 Pemain Mirip Kamu")
+                
+                for idx, row in final_results.iterrows():
+                    with st.container():
+                        # Layout Hasil (Tanpa Foto, Pakai Chart)
+                        col_info, col_chart = st.columns([1, 1])
+                        
+                        with col_info:
+                            # Tampilkan nama TANPA Pagar/Nomor
+                            st.subheader(f"{row['short_name']}") 
+                            st.caption(f"{row['club_name']} | {row['nationality_name']}")
+                            st.write(f"📏 {row['height_cm']} cm | ⚖️ {row['weight_kg']} kg")
+                            st.write(f"🦶 Foot: **{row['preferred_foot']}**")
+                            
+                            # Tampilkan Market Value (Kotak Hijau)
+                            st.success(f"💰 Market Value: €{row['value_eur']:,.0f}")
+                            
+                            # Similarity Score
+                            dist = distances[0][list(candidates.index).index(idx)]
+                            match_score = max(0, 100 - (dist * 5))
+                            st.progress(int(match_score)/100, text=f"Similarity: {int(match_score)}%")
+
+                        with col_chart:
+                            chart = plot_radar_chart("Saya (User)", input_data, row['short_name'], pd.DataFrame([row]))
+                            st.plotly_chart(chart, use_container_width=True)
+                        
+                        st.divider()
+
+        except Exception as e:
+            st.error(f"Terjadi kesalahan: {e}")
