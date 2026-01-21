@@ -3,6 +3,7 @@ import pandas as pd
 import joblib
 import numpy as np
 import plotly.graph_objects as go
+import os # <--- Tambahan wajib untuk Path
 
 # ==========================================
 # 1. SETUP & KONFIGURASI HALAMAN
@@ -26,25 +27,43 @@ st.markdown("<p style='text-align: center;'>Powered by Hybrid AI (Random Forest 
 st.markdown("---")
 
 # ==========================================
-# 2. LOAD DATA & MODEL
+# 2. LOAD DATA & MODEL (BULLETPROOF PATH)
 # ==========================================
 @st.cache_data
 def load_data():
-    df = pd.read_csv('data/processed/players_labeled.csv') 
+    # Cari lokasi file app.py saat ini
+    current_dir = os.path.dirname(os.path.abspath(__file__))
+    # Mundur satu folder ke belakang (folder project root)
+    project_root = os.path.dirname(current_dir)
+    # Gabungkan path secara absolut
+    file_path = os.path.join(project_root, 'data', 'processed', 'players_labeled.csv')
+    
+    df = pd.read_csv(file_path) 
     return df
 
 @st.cache_resource
 def load_models():
-    knn = joblib.load('models/knn_model.pkl')
-    scaler = joblib.load('models/scaler.pkl')
-    rf_classifier = joblib.load('models/rf_classifier.pkl')
+    current_dir = os.path.dirname(os.path.abspath(__file__))
+    project_root = os.path.dirname(current_dir)
+    
+    # Definisi path model
+    path_knn = os.path.join(project_root, 'models', 'knn_model.pkl')
+    path_scaler = os.path.join(project_root, 'models', 'scaler.pkl')
+    path_rf = os.path.join(project_root, 'models', 'rf_classifier.pkl')
+
+    knn = joblib.load(path_knn)
+    scaler = joblib.load(path_scaler)
+    rf_classifier = joblib.load(path_rf)
     return knn, scaler, rf_classifier
 
 try:
     df = load_data()
     knn_model, scaler, rf_model = load_models()
-except FileNotFoundError:
-    st.error("❌ File Data/Model tidak ditemukan! Pastikan kamu sudah menjalankan Notebook training.")
+except FileNotFoundError as e:
+    st.error(f"❌ File Data/Model tidak ditemukan: {e}")
+    st.stop()
+except Exception as e:
+    st.error(f"❌ Terjadi kesalahan sistem: {e}")
     st.stop()
 
 feature_cols = [
