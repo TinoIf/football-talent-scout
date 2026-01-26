@@ -1,9 +1,10 @@
 pandas
 numpy
-seaborn
 scikit-learn
-streamlit
+joblib
 matplotlib
 plotly
-joblib
+# Kunci Streamlit ke versi yang stabil tapi modern
+streamlit==1.30.0
+# Altair wajib di bawah 5 karena Streamlit versi ini belum full support Altair 5
 altair<5
